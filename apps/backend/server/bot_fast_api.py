@@ -10,17 +10,20 @@ from dotenv import load_dotenv
 from loguru import logger
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.frames.frames import LLMMessagesFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
-from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.processors.frameworks.rtvi import RTVIConfig, RTVIObserver, RTVIProcessor
 from pipecat.serializers.protobuf import ProtobufFrameSerializer
-from pipecat.services.openai.llm import OpenAILLMService
+from pipecat.services.ollama.llm import OLLamaLLMService
 from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
-from pipecat.services.openai.stt import OpenAISTTService
+from pipecat.services.whisper.stt import WhisperSTTService
 from pipecat.transcriptions.language import Language
-
+from pipecat.processors.aggregators.llm_response import (
+    LLMAssistantResponseAggregator,
+    LLMUserResponseAggregator,
+)
 from pipecat.transports.network.fastapi_websocket import (
     FastAPIWebsocketParams,
     FastAPIWebsocketTransport,
@@ -47,11 +50,13 @@ async def run_bot(websocket_client):
         ),
     )
 
-    llm = OpenAILLMService(api_key=os.getenv("OPENAI_API_KEY"))
-    stt = OpenAISTTService(
-        api_key=os.getenv("OPENAI_API_KEY"),
-        model="gpt-4o-transcribe",
-    )
+    messages = []
+    tma_in = LLMUserResponseAggregator(messages)
+    tma_out = LLMAssistantResponseAggregator(messages)
+
+    llm = OLLamaLLMService(model="llama3", base_url="http://localhost:11434/v1")
+    stt = WhisperSTTService()
+
     tts = ElevenLabsTTSService(
         api_key=os.getenv("ELEVENLABS_API_KEY"),
         voice_id=os.getenv("ELEVENLABS_VOICE_ID"),
@@ -65,15 +70,6 @@ async def run_bot(websocket_client):
             speed=1.1,
         ),
     )
-    context = OpenAILLMContext(
-        [
-            {
-                "role": "system",
-                "content": instruction,
-            }
-        ],
-    )
-    context_aggregator = llm.create_context_aggregator(context)
 
     # RTVI events for Pipecat client UI
     rtvi = RTVIProcessor(config=RTVIConfig(config=[]))
@@ -82,12 +78,12 @@ async def run_bot(websocket_client):
         [
             ws_transport.input(),
             stt,  # STT
-            context_aggregator.user(),
+            tma_in,
             rtvi,
             llm,  # LLM
             tts,
             ws_transport.output(),
-            context_aggregator.assistant(),
+            tma_out,
         ]
     )
 
@@ -105,7 +101,9 @@ async def run_bot(websocket_client):
         logger.info("Pipecat client ready.")
         await rtvi.set_bot_ready()
         # Kick off the conversation.
-        await task.queue_frames([context_aggregator.user().get_context_frame()])
+        messages.append({"role": "system", "content": instruction})
+        messages.append({"role": "user", "content": "Hello"})
+        await task.queue_frames([LLMMessagesFrame(messages)])
 
     @ws_transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
