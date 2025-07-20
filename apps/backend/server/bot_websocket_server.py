@@ -1,12 +1,11 @@
 #
-# Copyright (c) 2025, Daily
+# Copyright (c) 2024–2025, Daily
 #
 # SPDX-License-Identifier: BSD 2-Clause License
 #
-import os
-import sys
 
-from dotenv import load_dotenv
+import os
+
 from loguru import logger
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
@@ -18,39 +17,47 @@ from pipecat.processors.frameworks.rtvi import RTVIConfig, RTVIObserver, RTVIPro
 from pipecat.serializers.protobuf import ProtobufFrameSerializer
 from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.services.openai.stt import OpenAISTTService
-
-from pipecat.transports.network.fastapi_websocket import (
-    FastAPIWebsocketParams,
-    FastAPIWebsocketTransport,
+from pipecat.services.openai.tts import OpenAITTSService
+from pipecat.transports.network.websocket_server import (
+    WebsocketServerParams,
+    WebsocketServerTransport,
 )
 
-load_dotenv(override=True)
+SYSTEM_INSTRUCTION = """
+"Your task is to collect info from a user. For output, structure it according to  `ResponseType` in JSON 
+```typescript
+type UserInfo = 
+{
+    "isLocatedInGermany": boolean,
+    "insuranceType": "public" | "private",
+}
 
-logger.remove(0)
-logger.add(sys.stderr, level="DEBUG")
+type ResponseType = {
+  userOutput: string,
+  userInfo: UserInfo | null,
+}
+```
+You are a friendly, helpful robot to determine if the person is eligible for receiving therapy in Berlin on their public insurace.
+For that you need to collect only this info about the person seeking therapy:
+1. Do they live in Germany
+2. What insurance type: public or private.
 
-
-SYSTEM_INSTRUCTION = f"""
-"You are Gemini Chatbot, a friendly, helpful robot.
-
-Your goal is to demonstrate your capabilities in a succinct way.
-
-Your output will be converted to audio so don't include special characters in your answers.
-
-Respond to what the user said in a creative and helpful way. Keep your responses brief. One or two sentences at most.
+At any point in conversation, if you determined that `UserInfo` is collected, you can respond with:
+"Thank you for the information. I've noted down the information I collected from you. Please check if it is correct."
+Then you should output the `ResponseType` object with `user_info` field filled with the collected info.
 """
 
 
-async def run_bot(websocket_client):
-    ws_transport = FastAPIWebsocketTransport(
-        websocket=websocket_client,
-        params=FastAPIWebsocketParams(
+async def run_bot_websocket_server():
+    ws_transport = WebsocketServerTransport(
+        params=WebsocketServerParams(
+            serializer=ProtobufFrameSerializer(),
             audio_in_enabled=True,
             audio_out_enabled=True,
             add_wav_header=False,
             vad_analyzer=SileroVADAnalyzer(),
-            serializer=ProtobufFrameSerializer(),
-        ),
+            session_timeout=60 * 3,  # 3 minutes
+        )
     )
 
     llm = OpenAILLMService(api_key=os.getenv("OPENAI_API_KEY"))
@@ -59,6 +66,7 @@ async def run_bot(websocket_client):
         model="gpt-4o-transcribe",
         prompt="Expect words related to dogs, such as breed names.",
     )
+    tts = OpenAITTSService(api_key=os.getenv("OPENAI_API_KEY"), voice="ballad")
 
     context = OpenAILLMContext(
         [
@@ -80,6 +88,7 @@ async def run_bot(websocket_client):
             context_aggregator.user(),
             rtvi,
             llm,  # LLM
+            # tts,
             ws_transport.output(),
             context_aggregator.assistant(),
         ]
@@ -110,6 +119,11 @@ async def run_bot(websocket_client):
         logger.info("Pipecat Client disconnected")
         await task.cancel()
 
-    runner = PipelineRunner(handle_sigint=False)
+    @ws_transport.event_handler("on_session_timeout")
+    async def on_session_timeout(transport, client):
+        logger.info(f"Entering in timeout for {client.remote_address}")
+        await task.cancel()
+
+    runner = PipelineRunner()
 
     await runner.run(task)
