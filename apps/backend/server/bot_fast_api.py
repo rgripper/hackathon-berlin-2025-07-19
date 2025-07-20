@@ -17,8 +17,9 @@ from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.processors.frameworks.rtvi import RTVIConfig, RTVIObserver, RTVIProcessor
 from pipecat.serializers.protobuf import ProtobufFrameSerializer
 from pipecat.services.openai.llm import OpenAILLMService
-from pipecat.services.openai.tts import OpenAITTSService
+from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
 from pipecat.services.openai.stt import OpenAISTTService
+from pipecat.transcriptions.language import Language
 
 from pipecat.transports.network.fastapi_websocket import (
     FastAPIWebsocketParams,
@@ -30,30 +31,8 @@ load_dotenv(override=True)
 logger.remove(0)
 logger.add(sys.stderr, level="DEBUG")
 
-
-SYSTEM_INSTRUCTION = """
-"Your task is to collect info from a user. For output, structure it according to  `ResponseType` in JSON 
-```typescript
-type UserInfo = 
-{
-    "isLocatedInGermany": boolean,
-    "insuranceType": "public" | "private",
-}
-
-type ResponseType = {
-  userOutput: string,
-  userInfo: UserInfo | null,
-}
-```
-You are a friendly, helpful robot to determine if the person is eligible for receiving therapy in Berlin on their public insurace.
-For that you need to collect only this info about the person seeking therapy:
-1. Do they live in Germany
-2. What insurance type: public or private.
-
-At any point in conversation, if you determined that `UserInfo` is collected, you can respond with:
-"Thank you for the information. I've noted down the information I collected from you. Please check if it is correct."
-Then you should output the `ResponseType` object with `user_info` field filled with the collected info.
-"""
+with open("server/instruction.txt", "r", encoding="utf-8") as file:
+    instruction = file.read()
 
 
 async def run_bot(websocket_client):
@@ -72,14 +51,25 @@ async def run_bot(websocket_client):
     stt = OpenAISTTService(
         api_key=os.getenv("OPENAI_API_KEY"),
         model="gpt-4o-transcribe",
-        prompt="Expect words related to dogs, such as breed names.",
     )
-    tts = OpenAITTSService(api_key=os.getenv("OPENAI_API_KEY"), voice="ballad")
+    tts = ElevenLabsTTSService(
+        api_key=os.getenv("ELEVENLABS_API_KEY"),
+        voice_id=os.getenv("ELEVENLABS_VOICE_ID"),
+        model="eleven_flash_v2_5",
+        params=ElevenLabsTTSService.InputParams(
+            language=Language.EN,
+            stability=0.7,
+            similarity_boost=0.8,
+            style=0.5,
+            use_speaker_boost=True,
+            speed=1.1,
+        ),
+    )
     context = OpenAILLMContext(
         [
             {
-                "role": "user",
-                "content": "Start by greeting the user warmly and introducing yourself.",
+                "role": "system",
+                "content": instruction,
             }
         ],
     )
@@ -95,7 +85,7 @@ async def run_bot(websocket_client):
             context_aggregator.user(),
             rtvi,
             llm,  # LLM
-            #tts,
+            tts,
             ws_transport.output(),
             context_aggregator.assistant(),
         ]

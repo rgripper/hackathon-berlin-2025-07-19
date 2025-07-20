@@ -1,22 +1,7 @@
-
-import { PipecatClient, type PipecatClientOptions } from "@pipecat-ai/client-js";
-import { PipecatClientAudio, PipecatClientProvider, PipecatClientVideo, usePipecatClientTransportState, } from "@pipecat-ai/client-react";
+import { type PropsWithChildren } from 'react';
+import { PipecatClient, PipecatClientOptions } from '@pipecat-ai/client-js';
+import { PipecatClientProvider } from '@pipecat-ai/client-react';
 import { WebSocketTransport } from "@pipecat-ai/websocket-transport";
-import { Controls } from "./Controls";
-
-function BotVideo() {
-  const transportState = usePipecatClientTransportState();
-  const isConnected = transportState !== 'disconnected';
-
-  return (
-    <div className="bot-container">
-      <div className="video-container">
-        video
-        {isConnected && <PipecatClientVideo participant="bot" fit="cover" />}
-      </div>
-    </div>
-  );
-}
 
 const config: PipecatClientOptions = {
   transport: new WebSocketTransport(),
@@ -50,18 +35,8 @@ const config: PipecatClientOptions = {
 
 const client = new PipecatClient(config);
 
-function App() {
+export function PipecatProvider({ children }: PropsWithChildren) {
   return (
-    <div>
-      <PipecatClientProvider client={client}>
-        <Controls />
-        <BotVideo />
-
-        <PipecatClientAudio />
-      </PipecatClientProvider>
-    </div>
-
+    <PipecatClientProvider client={client}>{children}</PipecatClientProvider>
   );
 }
-
-export default App
