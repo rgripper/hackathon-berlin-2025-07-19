@@ -2,9 +2,11 @@
 
 https://github.com/Vector-Hector/therapyfinder#
 
-We check eligibility of a therapy seeker and onboard them to our service.
+![Alt text](./therapynow-diagram.webp "Title")
 
 ### Onboarding Web UI
+
+We check eligibility of a therapy seeker and onboard them to our service.
 
 The files are in `./apps/demo-frontend`
 
