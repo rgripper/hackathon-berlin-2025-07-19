@@ -7,6 +7,7 @@ import os
 import sys
 
 from dotenv import load_dotenv
+from fastapi import WebSocket
 from loguru import logger
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
@@ -38,7 +39,7 @@ with open("server/instruction.txt", "r", encoding="utf-8") as file:
     instruction = file.read()
 
 
-async def run_bot(websocket_client):
+async def run_bot(websocket_client: WebSocket):
     ws_transport = FastAPIWebsocketTransport(
         websocket=websocket_client,
         params=FastAPIWebsocketParams(
@@ -50,11 +51,15 @@ async def run_bot(websocket_client):
         ),
     )
 
-    messages = []
+    messages: list[dict[str, str]] = []
     tma_in = LLMUserResponseAggregator(messages)
     tma_out = LLMAssistantResponseAggregator(messages)
 
-    llm = OLLamaLLMService(model="llama3", base_url="http://localhost:11434/v1")
+    llm = OLLamaLLMService(
+        model="llama3.1",  # Must be pulled first: ollama pull llama3.1
+        base_url="http://localhost:11434/v1",  # Default Ollama endpoint
+        params=OLLamaLLMService.InputParams(temperature=0.7, max_tokens=1000),
+    )
     stt = WhisperSTTService()
 
     tts = ElevenLabsTTSService(
@@ -101,6 +106,7 @@ async def run_bot(websocket_client):
         logger.info("Pipecat client ready.")
         await rtvi.set_bot_ready()
         # Kick off the conversation.
+        g = {"role": "system", "content": instruction}
         messages.append({"role": "system", "content": instruction})
         messages.append({"role": "user", "content": "Hello"})
         await task.queue_frames([LLMMessagesFrame(messages)])

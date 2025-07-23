@@ -44,11 +44,15 @@ async def run_bot_websocket_server():
         )
     )
 
-    messages = []
+    messages: list[dict[str, str]] = []
     tma_in = LLMUserResponseAggregator(messages)
     tma_out = LLMAssistantResponseAggregator(messages)
 
-    llm = OLLamaLLMService(model="llama3", base_url="http://localhost:11434/v1")
+    llm = OLLamaLLMService(
+        model="llama3.1",  # Must be pulled first: ollama pull llama3.1
+        base_url="http://localhost:11434/v1",  # Default Ollama endpoint
+        params=OLLamaLLMService.InputParams(temperature=0.7, max_tokens=1000),
+    )
     stt = WhisperSTTService()
     tts = ElevenLabsTTSService(
         api_key=os.getenv("ELEVENLABS_API_KEY"),
