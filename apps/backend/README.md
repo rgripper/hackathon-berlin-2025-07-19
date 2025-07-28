@@ -1,6 +1,6 @@
 Installing and running
 
-Using uv
+Using `uv`
 ```sh
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
@@ -9,10 +9,19 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv run server/server.py
 ```
 
-Legacy
+### Ollama
+
+Model is `qwen3:1.7b`. See https://ollama.com/library/qwen3
+
+Start docker compose
+```sh
+docker compose up
 ```
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python server/server.py
+
+Pull the model once in a separate terminal session, before running the backend for the first time. 
+```sh
+docker exec -it ollama ollama pull qwen3:1.7b
 ```
+
+### Speach to text
+TODO:

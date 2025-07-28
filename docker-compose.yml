@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   ollama:
     image: ollama/ollama
@@ -9,7 +7,7 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     environment:
-      - OLLAMA_MODELS=llama3
+      - OLLAMA_MODELS=qwen3:1.7b
     restart: unless-stopped
 
   faster-whisper:
