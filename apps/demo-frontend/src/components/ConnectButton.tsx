@@ -18,6 +18,14 @@ export function ConnectButton() {
       if (isConnected) {
         await client.disconnect();
       } else {
+        const mics = await client.getAllMics(); // Ensure speakers are loaded before connecting
+        console.log(mics);
+        if (mics.length === 0) {
+          console.warn('No microphones available');
+          return;
+        }
+        client.updateMic(mics.find(x => x.label.includes('Realtek'))?.deviceId ?? mics[0]?.deviceId); // Select the first mic if available
+        // Connect to the Pipecat server
         await client.connect({ endpoint: 'http://localhost:7860/connect' });
       }
     } catch (error) {

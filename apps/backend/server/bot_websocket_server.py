@@ -55,7 +55,7 @@ async def run_bot_websocket_server():
         base_url="http://localhost:11434/v1",  # Default Ollama endpoint
         params=OLLamaLLMService.InputParams(temperature=0.7, max_tokens=1000),
     )
-    stt = WhisperSTTService(model="tiny")
+    stt = WhisperSTTService(model="tiny", device="cpu")
     tts = ElevenLabsTTSService(
         api_key=os.getenv("ELEVENLABS_API_KEY"),
         voice_id=os.getenv("ELEVENLABS_VOICE_ID"),

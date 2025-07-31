@@ -62,7 +62,7 @@ async def run_bot(websocket_client: WebSocket):
         base_url="http://localhost:11434/v1",  # Default Ollama endpoint
         params=OLLamaLLMService.InputParams(temperature=0.7, max_tokens=1000),
     )
-    stt = WhisperSTTService(model="tiny")
+    stt = WhisperSTTService(model="tiny", device="cpu")
 
     tts = ElevenLabsTTSService(
         api_key=os.getenv("ELEVENLABS_API_KEY"),
@@ -108,7 +108,6 @@ async def run_bot(websocket_client: WebSocket):
         logger.info("Pipecat client ready.")
         await rtvi.set_bot_ready()
         # Kick off the conversation.
-        g = {"role": "system", "content": instruction}
         messages.append({"role": "system", "content": instruction})
         messages.append({"role": "user", "content": "Hello"})
         await task.queue_frames([LLMMessagesFrame(messages)])

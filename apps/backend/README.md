@@ -6,8 +6,10 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # restart your terminal
 
-uv run server/server.py
+./run.sh
 ```
+
+> Note: If you want to run GPU-accelerated Whisper you need to run the backend on top of a cuda-enabled docker container. So for now for simplicity CPU is the default.
 
 ### Ollama
 
@@ -22,6 +24,7 @@ Pull the model once in a separate terminal session, before running the backend f
 ```sh
 docker exec -it ollama ollama pull qwen3:1.7b
 ```
+
 
 ### Speach to text
 TODO:
